@@ -15,28 +15,29 @@ class Config(Resource):
                 'fail': 'file does not exist',
                 'file': self.path
             }
-        with open(self.path, 'r') as f:
-            self.json = json.load(f)
+        self.load_json()
         return self.json
 
     def put(self, config_path):
-        self.json = str(request.form['json'])
+        post_data = request.data
+        if not post_data:
+            post_data = request.form.keys()[0]
+        self.json = str(post_data)
+        # return self.json
         self.sanitize_path(config_path)
         #validate json
         if not self.is_valid():
             return {
-              'fail': 'invalid json file',
-              'data': self.json
+                'fail': 'invalid json file',
+                'data': self.json
             }
         #create path
         path_dir = os.path.dirname(self.path)
         if not os.path.exists(path_dir) and path_dir:
             os.makedirs(path_dir)
         #put the json there
-        with open(self.path, 'w') as f:
-            f.write(self.json)
-        with open(self.path, 'r') as f:
-            self.json = json.load(f)
+        self.save_json()
+        self.load_json()
         return self.json
 
     def delete(self, config_path):
@@ -62,6 +63,15 @@ class Config(Resource):
      # Sanitizes a path, expects a string path, sets the objects path
     def sanitize_path(self, config_path):
         self.path = os.path.join('..',os.path.normpath('/'+config_path).lstrip('/'))
+
+    def save_json(self):
+        print self.path
+        with open(self.path, 'w') as f:
+            f.write(self.json)
+
+    def load_json(self):
+        with open(self.path, 'r') as f:
+            self.json = json.load(f)
 
 
 api.add_resource(Config, '/<path:config_path>')

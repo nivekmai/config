@@ -17,7 +17,7 @@ WhatsApp Configurator
 ###Use
 
 #### PUT
-```curl http://localhost:5000/config/test.json -d "json={\"key\":\"value\"}" -X PUT```
+```curl http://localhost:5000/config/test.json -d '{"key":"value"}' -X PUT```
 
 #### GET
 ```curl http://localhost:5000/config/test.json -X GET```
