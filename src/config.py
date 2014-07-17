@@ -23,9 +23,7 @@ class Config(Resource):
         if not post_data:
             post_data = request.form.keys()[0]
         self.json = str(post_data)
-        # return self.json
         self.sanitize_path(config_path)
-        #validate json
         if not self.is_valid():
             return {
                 'fail': 'invalid json file',
