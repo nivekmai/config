@@ -9,68 +9,99 @@ api = Api(app)
 
 class Config(Resource):
     def get(self, config_path):
-        self.sanitize_path(config_path)
+        if not self.split_path(config_path):
+            return self.return_obj()
         if not os.path.exists(self.path):
-            return {
-                'fail': 'file does not exist',
-                'file': self.path
-            }
-        self.load_json()
-        return self.json
+            self.description = 'File does not exist'
+            self.return_code = 404
+            return self.return_obj()
+        if self.load_json():
+            return self.json
+        return self.return_obj()
 
     def put(self, config_path):
         post_data = request.data
         if not post_data:
             post_data = request.form.keys()[0]
-        self.json = str(post_data)
-        self.sanitize_path(config_path)
-        if not self.is_valid():
-            return {
-                'fail': 'invalid json file',
-                'data': self.json
-            }
+        self.jsons = str(post_data)
+        if not self.split_path(config_path):
+            return self.return_obj()
         #create path
-        path_dir = os.path.dirname(self.path)
-        if not os.path.exists(path_dir) and path_dir:
-            os.makedirs(path_dir)
+        self.return_code = 200 if os.path.exists(self.path) else 201
+        if not os.path.exists(os.path.dirname(self.path)) and self.project:
+            os.makedirs(os.path.dirname(self.path))
         #put the json there
-        self.save_json()
+        if not self.save_json():
+            return self.return_obj()
         self.load_json()
-        return self.json
+        self.description = 'File saved successfully'
+        return self.return_obj()
 
     def delete(self, config_path):
-        self.sanitize_path(config_path)
+        self.split_path(config_path)
+        if not os.path.exists(self.path):
+            self.description = 'File does not exist'
+            self.return_code = 404
+            return self.return_obj()
         try:
             os.remove(self.path)
+        except:
+            self.description = 'File exists but could not remove'
+        if os.listdir(os.path.dirname(self.path)) == []:
             try:
                 os.rmdir(os.path.dirname(self.path))
+                self.return_code = 200
+                self.description = 'File and path removed'
+                return self.return_obj()
             except:
-                return {'success': 'file removed, but path still has content'}
-            return {'success': 'file and path removed'}
-        except:
-            return {'fail': 'file does not exist'}
+                self.description = 'Path exists but could not remove'
+                self.return_code = 500
+                return self.return_obj()
+        self.return_code = 200
+        self.description = 'File removed, but path still has content'
+        return self.return_obj()
 
-    # Checks to see if self.json is a valid json
-    def is_valid(self):
-        try:
-            json_object = json.loads(self.json)
-        except ValueError, e:
+     # Sanitizes a path, expects a string path, sets the path, name, and project
+    def split_path(self, config_path):
+        self.project = config_path.split(os.sep)[0]
+        self.name = config_path.split(os.sep)[-1]
+        if (self.project == '..' or self.name == '..'):
+            self.path = 'Invalid'
+            self.description = 'Invalid project name/path'
+            self.return_code = 403
             return False
+        else:
+            self.path = os.path.join('..', self.project, self.name)
+            return True
+
+    # Checks if the json is valid and saves it
+    def save_json(self):
+        try:
+            self.json = json.loads(self.jsons)
+        except ValueError:
+            self.return_code = 400
+            self.description = 'Invalid json file'
+            return False
+        with open(self.path, 'w') as f:
+            f.write(json.dumps(self.json))
         return True
 
-     # Sanitizes a path, expects a string path, sets the objects path
-    def sanitize_path(self, config_path):
-        self.path = os.path.join('..',os.path.normpath('/'+config_path).lstrip('/'))
-
-    def save_json(self):
-        print self.path
-        with open(self.path, 'w') as f:
-            f.write(self.json)
-
+    # Loads a json, expects an already sanitized path
     def load_json(self):
         with open(self.path, 'r') as f:
             self.json = json.load(f)
 
+    # Bulds an object to return
+    def return_obj(self):
+        return_obj = {
+            'description': self.description,
+            'path': self.path,
+            'name': self.name,
+            'project': self.project
+        }
+        if hasattr(self, 'jsons'):
+            return_obj['data'] = self.jsons
+        return return_obj, self.return_code
 
 api.add_resource(Config, '/<path:config_path>')
 
