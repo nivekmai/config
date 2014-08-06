@@ -63,11 +63,12 @@ class Config(Resource):
 
      # Sanitizes a path, expects a string path, sets the path, name, and project
     def split_path(self, config_path):
-        self.project = config_path.split(os.sep)[0]
-        self.name = config_path.split(os.sep)[-1]
-        if (self.project == '..' or self.name == '..'):
+        config_array = config_path.split(os.sep)
+        self.project = config_array[0]
+        self.name = config_array[-1]
+        if (self.project == '..' or self.name == '..' or len(config_array) > 2):
             self.path = 'Invalid'
-            self.description = 'Invalid project name/path'
+            self.description = 'Invalid project and name (expects project/name)'
             self.return_code = 403
             return False
         else:
