@@ -14,7 +14,7 @@ WhatsApp Configurator
 5. Install Flask Restful  
   ```pip install flask-restful```
 6. Install GitPython
-  ```pip install gitpython```
+  ```pip install gitpython==0.3.1```
 
 ###Use
 
