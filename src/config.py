@@ -1,5 +1,6 @@
 import os
 import json
+from os import path as p
 from git import *
 from flask import Flask, request
 from flask.ext.restful import Resource, Api, reqparse
@@ -14,13 +15,19 @@ parser.add_argument('email', help='Must have email for action', required=True)
 parser.add_argument('message', help='Commit message')
 
 
-TOKEN = '1234'  # Best security code evar!
-DATA_LOC = os.path.join(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    ), '..', '..', 'data')
-LOCK = '/tmp/wa_config_lock'
+INIT_CONFIG = p.join(p.dirname(p.abspath(__file__)), '..', 'config.json')
+with open(INIT_CONFIG, 'r') as f:
+    config = json.load(f)
+DATA_LOC = config['data location']
+if (p.exists(DATA_LOC)):
+    # If setup has been run and the data location is set, load the JSON from
+    # there.
+    CONFIG = p.join(DATA_LOC, config['project'], 'config.json')
+    with open(CONFIG, 'r') as f:
+        config = json.load(f)
 
+LOCK = config['lock']
+TOKEN = config['token']
 repo = Repo(
     DATA_LOC,
 )
@@ -62,9 +69,6 @@ class Config(Resource):
                 assert self.project != '..'
                 assert self.file != '..'
                 assert len(config_array) == 2
-                self.path = os.path.join(
-                    DATA_LOC, self.project, self.file)
-                return func(self, *args, **kwargs)
             except:
                 self.path = 'Invalid'
                 self.project = 'Invalid'
@@ -72,6 +76,9 @@ class Config(Resource):
                 self.return_code = 403
                 self.description = 'Invalid project and name (expects project/name)'
                 return self.return_obj()
+            self.path = p.join(
+                DATA_LOC, self.project, self.file)
+            return func(self, *args, **kwargs)
         return split_and_call
 
     @auth
@@ -80,12 +87,14 @@ class Config(Resource):
         '''Gets the JSON from the path.'''
         # if not self.split_path(config_path):
         #     return self.return_obj()
-        if not os.path.exists(self.path):
+        if not p.exists(self.path):
             self.return_code = 404
             self.description = 'File does not exist'
             return self.return_obj()
         if self.load_json():
             return self.json
+        self.return_code = 500
+        self.description = 'Could not load json'
         return self.return_obj()
 
     @auth
@@ -102,9 +111,9 @@ class Config(Resource):
         # if not self.split_path(config_path):
         #     return self.return_obj()
         #create path
-        self.return_code = 200 if os.path.exists(self.path) else 201
-        if not os.path.exists(os.path.dirname(self.path)) and self.project:
-            os.makedirs(os.path.dirname(self.path))
+        self.return_code = 200 if p.exists(self.path) else 201
+        if not p.exists(p.dirname(self.path)) and self.project:
+            os.makedirs(p.dirname(self.path))
         #put the json there
         if not self.save_json():
             return self.return_obj()
@@ -122,7 +131,7 @@ class Config(Resource):
         '''
         # if not self.split_path(config_path):
         #     return self.return_obj()
-        if not os.path.exists(self.path):
+        if not p.exists(self.path):
             self.description = 'File does not exist'
             self.return_code = 404
             return self.return_obj()
@@ -130,9 +139,9 @@ class Config(Resource):
             os.remove(self.path)
         except:
             self.description = 'File exists but could not remove'
-        if os.listdir(os.path.dirname(self.path)) == []:
+        if os.listdir(p.dirname(self.path)) == []:
             try:
-                os.rmdir(os.path.dirname(self.path))
+                os.rmdir(p.dirname(self.path))
                 self.return_code = 200
                 self.description = 'File and path removed'
                 return self.return_obj()
@@ -163,7 +172,11 @@ class Config(Resource):
         valid.
         '''
         with open(self.path, 'r') as f:
-            self.json = json.load(f)
+            try:
+                self.json = json.load(f)
+                return True
+            except:
+                return False
 
     def return_obj(self):
         '''Bulds an object to return.'''
@@ -181,7 +194,7 @@ class Config(Resource):
         '''Commits the changes to git.'''
         with open(LOCK, 'w'):
             index = repo.index
-            relative_path = os.path.join(self.project, self.file)
+            relative_path = p.join(self.project, self.file)
             if action is 'add':
                 index.add([relative_path])
             elif action is 'remove':
