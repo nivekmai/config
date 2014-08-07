@@ -8,8 +8,10 @@ app = Flask(__name__)
 api = Api(app)
 
 parser = reqparse.RequestParser()
-parser.add_argument('token', help='API Token', required=True)
+parser.add_argument('token', help='API Token required', required=True)
 parser.add_argument('user', help='Must have username for action', required=True)
+parser.add_argument('email', help='Must have email for action', required=True)
+parser.add_argument('message', help='Commit message')
 
 
 TOKEN = '1234'  # Best security code evar!
@@ -17,13 +19,11 @@ DATA_LOC = os.path.join(
     os.path.dirname(
         os.path.abspath(__file__)
     ), '..', '..', 'data')
-print DATA_LOC
+LOCK = '/tmp/wa_config_lock'
 
 repo = Repo(
-    os.path.join(__file__, '..', '..', '..', 'data'),
+    DATA_LOC,
 )
-print repo.is_dirty()
-
 
 def auth_fail():
     '''Mock function to make flask-restful happy.'''
@@ -47,11 +47,39 @@ def auth(func):
 
 class Config(Resource):
 
+    def sanitize(func):
+        '''
+        Sanitizes a path, expects a string path, sets the path, name, and
+        project.
+        '''
+
+        def split_and_call(self, *args, **kwargs):
+            config_path = kwargs['config_path']
+            config_array = config_path.split(os.sep)
+            try:
+                self.project = config_array[0]
+                self.file = config_array[1]
+                assert self.project != '..'
+                assert self.file != '..'
+                assert len(config_array) == 2
+                self.path = os.path.join(
+                    DATA_LOC, self.project, self.file)
+                return func(self, *args, **kwargs)
+            except:
+                self.path = 'Invalid'
+                self.project = 'Invalid'
+                self.file = 'Invalid'
+                self.return_code = 403
+                self.description = 'Invalid project and name (expects project/name)'
+                return self.return_obj()
+        return split_and_call
+
     @auth
+    @sanitize
     def get(self, config_path):
         '''Gets the JSON from the path.'''
-        if not self.split_path(config_path):
-            return self.return_obj()
+        # if not self.split_path(config_path):
+        #     return self.return_obj()
         if not os.path.exists(self.path):
             self.return_code = 404
             self.description = 'File does not exist'
@@ -61,6 +89,7 @@ class Config(Resource):
         return self.return_obj()
 
     @auth
+    @sanitize
     def put(self, config_path):
         '''
         Creates or updates the item at the path with the json passed in the post
@@ -70,8 +99,8 @@ class Config(Resource):
         if not post_data:
             post_data = request.form.keys()[0]
         self.jsons = str(post_data)
-        if not self.split_path(config_path):
-            return self.return_obj()
+        # if not self.split_path(config_path):
+        #     return self.return_obj()
         #create path
         self.return_code = 200 if os.path.exists(self.path) else 201
         if not os.path.exists(os.path.dirname(self.path)) and self.project:
@@ -80,16 +109,19 @@ class Config(Resource):
         if not self.save_json():
             return self.return_obj()
         self.load_json()
+        self.git_commit('add')
         self.description = 'File saved successfully'
         return self.return_obj()
 
     @auth
+    @sanitize
     def delete(self, config_path):
         '''
         Deletes the file if it exists, path and file if file is the only item in
         the path.
         '''
-        self.split_path(config_path)
+        # if not self.split_path(config_path):
+        #     return self.return_obj()
         if not os.path.exists(self.path):
             self.description = 'File does not exist'
             self.return_code = 404
@@ -110,25 +142,8 @@ class Config(Resource):
                 return self.return_obj()
         self.return_code = 200
         self.description = 'File removed, but path still has content'
+        self.git_commit('remove')
         return self.return_obj()
-
-    def split_path(self, config_path):
-        '''
-        Sanitizes a path, expects a string path, sets the path, name, and
-        project.
-        '''
-        config_array = config_path.split(os.sep)
-        self.project = config_array[0]
-        self.name = config_array[-1]
-        if (self.project == '..' or self.name == '..' or len(config_array) > 2):
-            self.path = 'Invalid'
-            self.return_code = 403
-            self.description = 'Invalid project and name (expects project/name)'
-            return False
-        else:
-            self.path = os.path.join(
-                DATA_LOC, self.project, self.name)
-            return True
 
     def save_json(self):
         '''Checks if the json is valid and saves it.'''
@@ -155,7 +170,7 @@ class Config(Resource):
         return_obj = {
             'description': self.description,
             'path': self.path,
-            'name': self.name,
+            'file': self.file,
             'project': self.project
         }
         if hasattr(self, 'jsons'):
@@ -164,13 +179,26 @@ class Config(Resource):
 
     def git_commit(self, action):
         '''Commits the changes to git.'''
-        # TODO:commit changes
-        self.git_push()
+        with open(LOCK, 'w'):
+            index = repo.index
+            relative_path = os.path.join(self.project, self.file)
+            if action is 'add':
+                index.add([relative_path])
+            elif action is 'remove':
+                index.remove([relative_path])
+            else:
+                raise ValueError('Not a valid git action.')
+            pargs = parser.parse_args()
+            # TODO: Do this better
+            os.environ['GIT_AUTHOR_NAME'] = pargs.user
+            os.environ['GIT_AUTHOR_EMAIL'] = pargs.email
+            index.commit('' if pargs.message is None else pargs.message)
+            self.git_push()
 
-    def git_push():
+    def git_push(self):
         '''Pushes changes upstream.'''
-        # TODO: push changes upstream
-        pass
+        origin = repo.remotes.origin
+        origin.push()
 
 api.add_resource(Config, '/<path:config_path>')
 
