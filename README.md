@@ -13,8 +13,14 @@ WhatsApp Configurator
   ```pip install flask```
 5. Install Flask Restful  
   ```pip install flask-restful```
+6. Install GitPython
+  ```pip install gitpython```
 
 ###Use
+
+1. Start server (in venv)
+  ```cd src```
+  ```python config.py```
 
 #### PUT
 ```curl http://localhost:5000/config/test.json -d '{"key":"value"}' -X PUT```
