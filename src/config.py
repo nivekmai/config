@@ -16,11 +16,11 @@ TOKEN = '1234'  # Best security code evar!
 DATA_LOC = os.path.join(
     os.path.dirname(
         os.path.abspath(__file__)
-    ), '..', '..', 'config_data')
+    ), '..', '..', 'data')
 print DATA_LOC
 
 repo = Repo(
-    os.path.join(__file__, '..', '..', '..', 'config_data'),
+    os.path.join(__file__, '..', '..', '..', 'data'),
 )
 print repo.is_dirty()
 
