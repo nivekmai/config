@@ -104,10 +104,8 @@ class Config(Resource):
         Creates or updates the item at the path with the json passed in the post
         data.
         '''
-        post_data = request.data
-        if not post_data:
-            post_data = request.form.keys()[0]
-        self.jsons = str(post_data)
+        if not self.get_json():
+            return self.return_obj()
         # if not self.split_path(config_path):
         #     return self.return_obj()
         #create path
@@ -154,14 +152,48 @@ class Config(Resource):
         self.git_commit('remove')
         return self.return_obj()
 
-    def save_json(self):
-        '''Checks if the json is valid and saves it.'''
+    @auth
+    @sanitize
+    def patch(self, config_path):
+        '''Update only part of a json.'''
+        app.logger.debug('Patching: ' + config_path)
+        if not self.get_json():
+            return self.return_obj()
+        patch = json.loads(self.jsons)
+        self.load_json()
+        app.logger.debug('JSON: ' + json.dumps(self.json))
+        app.logger.debug('patch: ' + json.dumps(patch))
+        for key, value in patch.iteritems():
+            self.json[key] = value
+        app.logger.debug('patched: ' + json.dumps(self.json))
+        self.save_json()
+        self.git_commit('add')
+        self.description = 'File successfully patched.'
+        self.return_code = 200
+        return self.return_obj()
+
+    def get_json(self):
+        '''Get JSON from request data and validate'''
+        post_data = request.data
+        if not post_data:
+            post_data = request.form.keys()[0]
+        self.jsons = str(post_data)
+        if self.validate_json():
+            return True
+        return False
+
+    def validate_json(self):
+        '''Validates the JSON'''
         try:
             self.json = json.loads(self.jsons)
+            return True
         except ValueError:
             self.return_code = 400
             self.description = 'Invalid json file'
             return False
+
+    def save_json(self):
+        '''Checks if the json is valid and saves it.'''
         with open(self.path, 'w') as f:
             f.write(json.dumps(self.json, indent=4))
         return True
