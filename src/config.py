@@ -158,32 +158,82 @@ class Config(Resource):
         self.git_commit('remove')
         return self.return_obj()
 
-    @auth
-    @sanitize
-    def patch(self, config_path):
-        '''Update only part of a json.'''
-        app.logger.debug('Patching: ' + config_path)
-        if not self.get_json():
-            return self.return_obj()
-        patch = json.loads(self.jsons)
-        self.load_json()
-        app.logger.debug('JSON: ' + json.dumps(self.json))
-        app.logger.debug('patch: ' + json.dumps(patch))
-        for key, value in patch.iteritems():
-            if hasattr(self.json, key):
-                self.json[key] = value
-            else:
-                app.logger.warn("Invalid patch, '" + key + "' not in file.")
-                self.description = "Invalid patch, '" + key + "' not in file."
-                self.return_code = 422
-                return self.return_obj()
-        app.logger.debug('patched: ' + json.dumps(self.json))
-        if not self.save_json():
-            return self.return_obj()
-        self.git_commit('add')
-        self.return_code = 200
-        self.description = 'File successfully patched.'
-        return self.return_obj()
+#Patching is really hard, no patching till I've got more time
+#     @auth
+#     @sanitize
+#     def patch(self, config_path):
+#         '''Update only part of a json.'''
+#         app.logger.debug('Patching: ' + config_path)
+#         if not self.get_json():
+#             return self.return_obj()
+#         patches = json.loads(self.jsons)
+#         self.load_json()
+#         app.logger.debug('JSON: ' + json.dumps(self.json))
+#         app.logger.debug('patches: ' + json.dumps(patches))
+#         for i in range(len(patches)):
+#             if patches[i]['op'] == 'replace':
+#                 replace_key(patches[i])
+#             elif patches[i]['op'] == 'add':
+#                 add_key(patches[i])
+#             elif patches[i]['op'] == 'remove':
+#                 remove_key(patches[i])
+#         return self.return_obj()
+
+#     def replace_key(self, patch):
+#         path = patch['path'].split('/')
+#         if self.obj_nav(patch, path) == []:
+#             warning = "Invalid patch, '" + patch['path'] + "' not in file."
+#             app.logger.warn(warning)
+#             self.description = warning
+#             self.return_code = 422
+#             return
+#         else:
+#             self.obj_set(patch, path, patch['value'])
+#         app.logger.debug('patched: ' + json.dumps(self.json))
+#         if not self.save_json():
+#             return
+#         self.git_commit('add')
+#         self.return_code = 200
+#         self.description = 'File successfully patched.'
+#         return
+
+#     def add_key(self, patch):
+#         self.json[key] = patch['val']
+#         app.logger.debug('patched: ' + json.dumps(self.json))
+#         if not self.save_json():
+#             return
+#         self.git_commit('add')
+#         self.return_code = 200
+#         self.description = 'File successfully patched.'
+#         return
+
+#     def obj_nav(self, obj, path):
+#         if not path:
+#             return obj
+#         head, tail = path[0], path[1:]
+#         return self.obj_nav(obj[int(head) if head.isdigit() else head], tail)
+
+#     def obj_set(self, obj, path, val):
+#         if len(path) == 1:
+#             obj[path[0]] = val
+#             return
+#         head, tail = path[0], path[1:]
+#         if not hasattr(obj, path[0]):
+#             if head.isdigit():
+#                 obj[path[0]] = self.obj_set(obj[int(head)], tail, val)
+#             else:
+#                 obj[path[0]] = self.obj_set(obj[head], tail, val)
+#             return
+#         return obj_set(obj[int(head) if head.isdigit() else head], tail, val)
+
+# def obj_add(obj, path, val):
+#     if len(path) == 1:
+#         return dict(obj.items() + {path[0]: val}.items())
+#     head, tail = path[0], path[1:]
+#     if hasattr(obj, head):
+#         return dict(obj[head].items() + obj_add(obj, tail, val))
+#     else:
+#         obj[head] = obj_add(obj, tail, val)
 
     def get_json(self):
         '''Get JSON from request data and validate'''
