@@ -71,7 +71,7 @@ class Config(Resource):
                 assert self.file != '..'
                 assert len(config_array) == 2
             except:
-                app.logger.debug('config: ' + config_array)
+                app.logger.warn('config: ' + config_array)
                 self.path = 'Invalid'
                 self.project = 'Invalid'
                 self.file = 'Invalid'
@@ -87,6 +87,7 @@ class Config(Resource):
     @sanitize
     def get(self, config_path):
         '''Gets the JSON from the path.'''
+        app.logger.debug('GET: ' + config_path)
         # if not self.split_path(config_path):
         #     return self.return_obj()
         if not p.exists(self.path):
@@ -106,6 +107,7 @@ class Config(Resource):
         Creates or updates the item at the path with the json passed in the post
         data.
         '''
+        app.logger.debug('PUT: ' + config_path)
         if not self.get_json():
             return self.return_obj()
         # if not self.split_path(config_path):
@@ -138,7 +140,7 @@ class Config(Resource):
         try:
             os.remove(self.path)
         except:
-            app.logger.debug('Failed to remove: ' + self.path)
+            app.logger.warn('Failed to remove: ' + self.path)
             self.description = 'File exists but could not remove'
         if os.listdir(p.dirname(self.path)) == []:
             try:
@@ -147,7 +149,7 @@ class Config(Resource):
                 self.description = 'File and path removed'
                 return self.return_obj()
             except:
-                app.logger.debug('Failed to remove: ' + self.path)
+                app.logger.warn('Failed to remove: ' + self.path)
                 self.description = 'Path exists but could not remove'
                 self.return_code = 500
                 return self.return_obj()
@@ -170,10 +172,11 @@ class Config(Resource):
         for key, value in patch.iteritems():
             self.json[key] = value
         app.logger.debug('patched: ' + json.dumps(self.json))
-        self.save_json()
+        if not self.save_json():
+            return self.return_obj()
         self.git_commit('add')
-        self.description = 'File successfully patched.'
         self.return_code = 200
+        self.description = 'File successfully patched.'
         return self.return_obj()
 
     def get_json(self):
@@ -182,6 +185,7 @@ class Config(Resource):
         if not post_data:
             post_data = request.form.keys()[0]
         self.jsons = str(post_data)
+        app.logger.debug('get_json: ' + self.jsons)
         if self.validate_json():
             return True
         return False
@@ -192,13 +196,18 @@ class Config(Resource):
             self.json = json.loads(self.jsons)
             return True
         except ValueError:
-            app.logger.debug('Invalid JSON: ' + self.jsons)
             self.return_code = 400
+            app.logger.warn('Invalid JSON: ' + self.jsons)
             self.description = 'Invalid json file'
             return False
 
     def save_json(self):
-        '''Checks if the json is valid and saves it.'''
+        '''Checks if the json exists and saves it.'''
+        if not self.json or test == 'null':
+            app.logger.warn('Empty JSON on save')
+            self.return_code = 500
+            self.description = 'Empty JSON on save'
+            return False
         with open(self.path, 'w') as f:
             f.write(json.dumps(self.json, indent=4))
         return True
@@ -213,7 +222,7 @@ class Config(Resource):
                 self.json = json.load(f)
                 return True
             except:
-                app.logger.debug('Could not load json: ' + self.path)
+                app.logger.warn('Could not load json: ' + self.path)
                 return False
 
     def return_obj(self):
@@ -251,7 +260,7 @@ class Config(Resource):
         origin = repo.remotes.origin
         origin.push()
 
-api.add_resource(Config, '/<path:config_path>')
+api.add_resource(Config, '/api/<path:config_path>')
 
 if __name__ == '__main__':
     app.run(debug=True)
