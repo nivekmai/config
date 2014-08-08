@@ -170,7 +170,13 @@ class Config(Resource):
         app.logger.debug('JSON: ' + json.dumps(self.json))
         app.logger.debug('patch: ' + json.dumps(patch))
         for key, value in patch.iteritems():
-            self.json[key] = value
+            if hasattr(self.json, key):
+                self.json[key] = value
+            else:
+                app.logger.warn("Invalid patch, '" + key + "' not in file.")
+                self.description = "Invalid patch, '" + key + "' not in file."
+                self.return_code = 422
+                return self.return_obj()
         app.logger.debug('patched: ' + json.dumps(self.json))
         if not self.save_json():
             return self.return_obj()
@@ -203,7 +209,7 @@ class Config(Resource):
 
     def save_json(self):
         '''Checks if the json exists and saves it.'''
-        if not self.json or test == 'null':
+        if not self.json or self.json == 'null':
             app.logger.warn('Empty JSON on save')
             self.return_code = 500
             self.description = 'Empty JSON on save'
