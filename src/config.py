@@ -163,7 +163,7 @@ class Config(Resource):
             self.description = 'Invalid json file'
             return False
         with open(self.path, 'w') as f:
-            f.write(json.dumps(self.json))
+            f.write(json.dumps(self.json, indent=4))
         return True
 
     def load_json(self):
