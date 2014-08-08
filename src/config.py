@@ -47,6 +47,7 @@ def auth(func):
     def auth_and_call(*args, **kwargs):
         pargs = parser.parse_args()
         if pargs.token != get_token():
+            app.logger.debug('Failed token: ' + pargs.token)
             return auth_fail()
         return func(*args, **kwargs)
     return auth_and_call
@@ -70,6 +71,7 @@ class Config(Resource):
                 assert self.file != '..'
                 assert len(config_array) == 2
             except:
+                app.logger.debug('config: ' + config_array)
                 self.path = 'Invalid'
                 self.project = 'Invalid'
                 self.file = 'Invalid'
@@ -136,6 +138,7 @@ class Config(Resource):
         try:
             os.remove(self.path)
         except:
+            app.logger.debug('Failed to remove: ' + self.path)
             self.description = 'File exists but could not remove'
         if os.listdir(p.dirname(self.path)) == []:
             try:
@@ -144,6 +147,7 @@ class Config(Resource):
                 self.description = 'File and path removed'
                 return self.return_obj()
             except:
+                app.logger.debug('Failed to remove: ' + self.path)
                 self.description = 'Path exists but could not remove'
                 self.return_code = 500
                 return self.return_obj()
@@ -188,6 +192,7 @@ class Config(Resource):
             self.json = json.loads(self.jsons)
             return True
         except ValueError:
+            app.logger.debug('Invalid JSON: ' + self.jsons)
             self.return_code = 400
             self.description = 'Invalid json file'
             return False
@@ -208,6 +213,7 @@ class Config(Resource):
                 self.json = json.load(f)
                 return True
             except:
+                app.logger.debug('Could not load json: ' + self.path)
                 return False
 
     def return_obj(self):
