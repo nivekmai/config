@@ -15,6 +15,8 @@ WhatsApp Configurator
   ```pip install flask-restful```
 6. Install GitPython
   ```pip install gitpython==0.3.1```
+7. Install jsonpatch
+  ```pip install jsonpatch```
 
 ###Use
 

@@ -1,5 +1,7 @@
 import os
 import json
+import jsonpatch
+import jsonpointer
 from os import path as p
 from git import *
 from flask import Flask, request
@@ -31,6 +33,7 @@ TOKEN = config['token']
 repo = Repo(
     DATA_LOC,
 )
+
 
 def auth_fail():
     '''Mock function to make flask-restful happy.'''
@@ -158,82 +161,38 @@ class Config(Resource):
         self.git_commit('remove')
         return self.return_obj()
 
-#Patching is really hard, no patching till I've got more time
-#     @auth
-#     @sanitize
-#     def patch(self, config_path):
-#         '''Update only part of a json.'''
-#         app.logger.debug('Patching: ' + config_path)
-#         if not self.get_json():
-#             return self.return_obj()
-#         patches = json.loads(self.jsons)
-#         self.load_json()
-#         app.logger.debug('JSON: ' + json.dumps(self.json))
-#         app.logger.debug('patches: ' + json.dumps(patches))
-#         for i in range(len(patches)):
-#             if patches[i]['op'] == 'replace':
-#                 replace_key(patches[i])
-#             elif patches[i]['op'] == 'add':
-#                 add_key(patches[i])
-#             elif patches[i]['op'] == 'remove':
-#                 remove_key(patches[i])
-#         return self.return_obj()
+    @auth
+    @sanitize
+    def patch(self, config_path):
+        '''Update only part of a json.'''
+        app.logger.debug('Patching: ' + config_path)
+        if not self.get_json():
+            return self.return_obj()
+        patches = json.loads(self.jsons)
+        self.load_json()
+        app.logger.debug('JSON: ' + json.dumps(self.json))
+        app.logger.debug('patches: ' + json.dumps(patches))
+        try:
+            self.json = jsonpatch.apply_patch(self.json, patches)
+        except (
+                jsonpatch.JsonPatchConflict,
+                jsonpointer.JsonPointerException)as e:
+            self.return_code = 422
+            self.description = str(e)
+            app.logger.error(self.description)
+            return self.return_obj()
+        except:
+            self.return_code = 422
+            self.description = 'Unknown error in patch.'
+            app.logger.error(self.description)
+            return self.return_obj()
 
-#     def replace_key(self, patch):
-#         path = patch['path'].split('/')
-#         if self.obj_nav(patch, path) == []:
-#             warning = "Invalid patch, '" + patch['path'] + "' not in file."
-#             app.logger.warn(warning)
-#             self.description = warning
-#             self.return_code = 422
-#             return
-#         else:
-#             self.obj_set(patch, path, patch['value'])
-#         app.logger.debug('patched: ' + json.dumps(self.json))
-#         if not self.save_json():
-#             return
-#         self.git_commit('add')
-#         self.return_code = 200
-#         self.description = 'File successfully patched.'
-#         return
-
-#     def add_key(self, patch):
-#         self.json[key] = patch['val']
-#         app.logger.debug('patched: ' + json.dumps(self.json))
-#         if not self.save_json():
-#             return
-#         self.git_commit('add')
-#         self.return_code = 200
-#         self.description = 'File successfully patched.'
-#         return
-
-#     def obj_nav(self, obj, path):
-#         if not path:
-#             return obj
-#         head, tail = path[0], path[1:]
-#         return self.obj_nav(obj[int(head) if head.isdigit() else head], tail)
-
-#     def obj_set(self, obj, path, val):
-#         if len(path) == 1:
-#             obj[path[0]] = val
-#             return
-#         head, tail = path[0], path[1:]
-#         if not hasattr(obj, path[0]):
-#             if head.isdigit():
-#                 obj[path[0]] = self.obj_set(obj[int(head)], tail, val)
-#             else:
-#                 obj[path[0]] = self.obj_set(obj[head], tail, val)
-#             return
-#         return obj_set(obj[int(head) if head.isdigit() else head], tail, val)
-
-# def obj_add(obj, path, val):
-#     if len(path) == 1:
-#         return dict(obj.items() + {path[0]: val}.items())
-#     head, tail = path[0], path[1:]
-#     if hasattr(obj, head):
-#         return dict(obj[head].items() + obj_add(obj, tail, val))
-#     else:
-#         obj[head] = obj_add(obj, tail, val)
+        if not self.save_json():
+            return self.return_obj()
+        self.git_commit('add')
+        self.return_code = 200
+        self.description = 'File patched successfully'
+        return self.return_obj()
 
     def get_json(self):
         '''Get JSON from request data and validate'''
