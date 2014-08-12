@@ -275,7 +275,25 @@ class Config(Resource):
         origin = repo.remotes.origin
         origin.push()
 
+
+class List(Resource):
+
+    @auth
+    def get(self):
+        proj_ob = {}
+        projects = os.listdir(DATA_LOC)
+        for i in range(len(projects)):
+            if projects[i] == ".git":
+                continue
+            files = os.listdir(p.join(DATA_LOC, projects[i]))
+            proj_ob[projects[i]] = []
+            for f in range(len(files)):
+                proj_ob[projects[i]].append(files[f])
+        return proj_ob, 200
+
+
 api.add_resource(Config, '/api/<path:config_path>')
+api.add_resource(List, '/list')
 
 if __name__ == '__main__':
     app.run(debug=True)
